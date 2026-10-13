@@ -94,12 +94,35 @@ Mantén cada acción concisa y concreta. No uses explicaciones sobre el proceso.
     return send(res, 502, { error: 'No se pudo conectar con el proveedor de IA. Comprueba la conexión y vuelve a intentarlo.' });
   }
 
-  if (!upstream.ok) {
-    // No return upstream body or headers: they may contain provider diagnostics.
-    if (upstream.status === 429) return send(res, 429, { error: 'El proveedor de IA alcanzó un límite temporal o de cuota. Espera y vuelve a intentar.' });
-    if (upstream.status === 401 || upstream.status === 403) return send(res, 502, { error: 'El proveedor rechazó la credencial o el acceso al modelo. Revisa la variable secreta en Vercel.' });
-    return send(res, 502, { error: 'El proveedor de IA no pudo completar la generación. Inténtalo más tarde.' });
+  
+if (!upstream.ok) {
+  let providerError = '';
+  try {
+    providerError = await upstream.text();
+  } catch (_) {}
+
+  console.error('Gemini API error:', {
+    status: upstream.status,
+    message: providerError.slice(0, 1500)
+  });
+
+  if (upstream.status === 429) {
+    return send(res, 429, {
+      error: 'Gemini alcanzó un límite de uso o cuota. Revisa los registros de Vercel.'
+    });
   }
+
+  if (upstream.status === 401 || upstream.status === 403) {
+    return send(res, 502, {
+      error: 'Gemini rechazó la credencial o los permisos. Revisa la configuración de la API.'
+    });
+  }
+
+  return send(res, 502, {
+    error: `Gemini devolvió el estado ${upstream.status}. Revisa los registros de Vercel.`
+  });
+}
+  
 
   let providerData;
   try { providerData = await upstream.json(); } catch (_) {
