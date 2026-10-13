@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "functions": {
+    "api/generate-storyboard.js": { "maxDuration": 60 },
+    "api/health.js": { "maxDuration": 10 }
+  }
+}
