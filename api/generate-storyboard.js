@@ -92,37 +92,52 @@ Mantén cada acción concisa y concreta. No uses explicaciones sobre el proceso.
     });
   } catch (_) {
     return send(res, 502, { error: 'No se pudo conectar con el proveedor de IA. Comprueba la conexión y vuelve a intentarlo.' });
-  }
-
+  } 
   
 if (!upstream.ok) {
-  let providerError = '';
-  try {
-    providerError = await upstream.text();
-  } catch (_) {}
+let providerBody = {};
+let rawProviderError = '';
 
-  console.error('Gemini API error:', {
-    status: upstream.status,
-    message: providerError.slice(0, 1500)
-  });
+try {
+  rawProviderError = await upstream.text();
+  providerBody = JSON.parse(rawProviderError);
+} catch (_) {}
 
-  if (upstream.status === 429) {
-    return send(res, 429, {
-      error: 'Gemini alcanzó un límite de uso o cuota. Revisa los registros de Vercel.'
-    });
-  }
+const providerMessage = String(
+  providerBody?.error?.message ||
+  providerBody?.message ||
+  rawProviderError ||
+  'Sin detalle del proveedor'
+).slice(0, 350);
 
-  if (upstream.status === 401 || upstream.status === 403) {
-    return send(res, 502, {
-      error: 'Gemini rechazó la credencial o los permisos. Revisa la configuración de la API.'
-    });
-  }
+console.error('Gemini API error:', {
+  status: upstream.status,
+  message: providerMessage,
+});
 
-  return send(res, 502, {
-    error: `Gemini devolvió el estado ${upstream.status}. Revisa los registros de Vercel.`
+if (upstream.status === 429) {
+  return send(res, 429, {
+    error: 'Gemini alcanzó un límite de uso o cuota.',
+    detail: providerMessage,
+    providerStatus: upstream.status,
   });
 }
-  
+
+if (upstream.status === 401 || upstream.status === 403) {
+  return send(res, 502, {
+    error: 'Gemini rechazó la credencial o los permisos de la API.',
+    detail: providerMessage,
+    providerStatus: upstream.status,
+  });
+}
+
+return send(res, 502, {
+  error: 'Gemini no pudo generar el storyboard.',
+  detail: providerMessage,
+  providerStatus: upstream.status,
+});
+
+}
 
   let providerData;
   try { providerData = await upstream.json(); } catch (_) {
